@@ -1,0 +1,321 @@
+<template>
+  <div
+    ref="container"
+    class="carousel-container mb-10 relative"
+    :class="[childHovering ? 'animate-z-hover' : 'animate-z-unhover']"
+  >
+    <div>
+      <Swiper
+        v-bind="options"
+        @swiper="onReady"
+        @slideChange="handleToggleButton"
+      >
+        <SwiperSlide
+          v-show="awards.length != 0"
+          v-for="award in awards"
+          :key="award.id"
+          class="px-2 hover:-translate-all hover:scale-105 duration-150"
+        >
+          <div
+            class="cursor-pointer video-card relative transition-all duration-300 livecardclass"
+            :class="{
+              'animate-card-hover': isScaled,
+              'animate-card-unhover': !isScaled,
+            }"
+            @click="handleClick"
+          >
+            <router-link :to="'/awardcategorie?awards=' + award.id">
+              <Image
+                class="block sm:hidden md:block"
+                :src="
+                  award.imagesMap.imagepaysage != null
+                    ? award.imagesMap.imagepaysage.url
+                    : defaultimage
+                "
+                :class="{ 'animate-card-hover': isScaled }"
+                :alt="award.name"
+              />
+              <Image
+                class="block md:hidden"
+                :src="
+                  award.imagesMap.imageportrait != null
+                    ? award.imagesMap.imageportrait.url
+                    : defaultimage
+                "
+                :class="{ 'animate-card-hover': isScaled }"
+                :alt="award.name"
+              />
+              <div
+                class="absolute mt-1 p-1 text-white text-base sm:text-base lg:text-lg font-bold"
+                :title="award.name"
+              >
+                {{ award.name }}
+              </div>
+
+              <div
+                class="w-full h-full relative absolute flex justify-end items-end"
+              >
+                <div class="text-gray-300 text-[0.75rem] 2xl:text-sm font-bold">
+                  Fin des votes: {{ award.endDate }}
+                </div>
+              </div>
+            </router-link>
+          </div>
+        </SwiperSlide>
+
+        <SwiperSlide>
+          <Pub />
+        </SwiperSlide>
+
+        <template #container-end>
+          <div
+            class="swiper-button swiper-button-prev group cursor-pointer flex items-center justify-center mt-14 sm:mt-14 xl:mt-28"
+          >
+            <IconArrowLeft
+              class="w-10 h-10 group-hover:w-12 group-hover:h-12"
+            />
+          </div>
+
+          <div
+            class="swiper-button group cursor-pointer swiper-button-next flex items-center justify-center mt-14 sm:mt-14 xl:mt-28"
+          >
+            <IconArrowRight
+              class="w-10 h-10 group-hover:w-12 group-hover:h-12"
+            />
+          </div>
+        </template>
+      </Swiper>
+    </div>
+  </div>
+</template>
+  
+  <script>
+import IconArrowRight from "~icons/ic/outline-arrow-forward-ios";
+import IconArrowLeft from "~icons/ic/outline-arrow-back-ios";
+import { ref } from "vue";
+import { Pagination } from "swiper";
+import { Swiper, SwiperSlide } from "swiper/vue";
+import "swiper/css";
+import Image from "../Image.vue";
+import { Api } from "../../helpers";
+import Erreur from "../../services/error";
+import Pub from "../Pub.vue";
+
+export default {
+  props: {
+    awards: {
+      type: Array,
+    },
+    fetching: {
+      type: Boolean,
+    },
+  },
+
+  components: {
+    IconArrowRight,
+    IconArrowLeft,
+    Swiper,
+    SwiperSlide,
+    Image,
+    Pub,
+  },
+
+  data() {
+    return {
+      isVideoEnded: false,
+      award: {
+        name: "",
+        endDate: "",
+        imagesMap: {
+          imagepaysage: {
+            url: "",
+          },
+          imageportrait: {
+            url: "",
+          },
+        },
+      },
+    };
+  },
+
+  mounted() {
+  },
+
+  setup() {
+    const container = ref(null);
+    const childHovering = ref(false);
+    const options = {
+      slidesPerView: 2,
+      slidesPerGroup: 2,
+      spaceBetween: 5,
+      modules: [Pagination],
+      pagination: {
+        type: "bullets",
+      },
+      speed: 800,
+      watchSlidesProgress: true,
+      breakpoints: {
+        1024: {
+          slidesPerView: 4.5,
+          slidesPerGroup: 4.5,
+          spaceBetween: 15,
+        },
+
+        768: {
+          slidesPerView: 2.2,
+          slidesPerGroup: 2.2,
+          spaceBetween: 15,
+        },
+
+        640: {
+          slidesPerView: 1.5,
+          slidesPerGroup: 1.5,
+          spaceBetween: 15,
+        },
+
+        240: {
+          slidesPerView: 1,
+          slidesPerGroup: 1,
+          spaceBetween: 15,
+        },
+      },
+    };
+
+    const handleToggleButton = (swiper) => {
+      const prevButton = container.value.querySelector(".swiper-button-prev");
+      const nextButton = container.value.querySelector(".swiper-button-next");
+
+      if (swiper.isBeginning && !swiper.params.loop) {
+        prevButton.classList.add("swiper-button-disabled");
+      } else {
+        prevButton.classList.remove("swiper-button-disabled");
+      }
+
+      if (swiper.isEnd && !swiper.params.loop) {
+        nextButton.classList.add("swiper-button-disabled");
+      } else {
+        nextButton.classList.remove("swiper-button-disabled");
+      }
+
+      handleSlideHover();
+    };
+
+    const listenCardHovering = () => {
+      const config = {
+        attributes: true,
+        subtree: true,
+      };
+
+      const callback = function (mutations) {
+        for (let mutation of mutations) {
+          const { target } = mutation;
+
+          if (target.classList.contains("animate-card-hover")) {
+            childHovering.value = true;
+          } else if (target.classList.contains("animate-card-unhover")) {
+            childHovering.value = false;
+          }
+        }
+      };
+
+      const observer = new MutationObserver(callback);
+
+      observer.observe(container.value, config);
+    };
+
+    const handleSlideHover = () => {
+      const slides = [
+        ...container.value.querySelectorAll(
+          ".swiper-slide.swiper-slide-visible .video-card"
+        ),
+      ];
+
+      const firstElement = slides[0];
+      const lastElement = slides[slides.length - 1];
+
+      // firstElement.style.transformOrigin = "left center";
+      // lastElement.style.transformOrigin = "right center";
+    };
+
+    const onReady = (swiper) => {
+      const prevButton = container.value.querySelector(".swiper-button-prev");
+      const nextButton = container.value.querySelector(".swiper-button-next");
+
+      prevButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (swiper.isBeginning && !swiper.params.loop) return;
+        swiper.slidePrev();
+      });
+
+      nextButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (swiper.isEnd && !swiper.params.loop) return;
+        swiper.slideNext();
+      });
+
+      handleToggleButton(swiper);
+      listenCardHovering();
+      handleSlideHover();
+    };
+
+    return {
+      options,
+      container,
+      onReady,
+      handleToggleButton,
+      childHovering,
+    };
+  },
+
+};
+</script>
+  
+  <style>
+.swiper {
+  overflow: visible;
+}
+
+.swiper-button-disabled {
+  display: none;
+}
+
+.swiper:hover .swiper-button svg,
+.swiper:hover .swiper-pagination {
+  visibility: visible;
+}
+
+.swiper-button svg {
+  visibility: hidden;
+}
+
+.swiper-button-next,
+.swiper-button-prev {
+  @apply absolute md:w-14 md:h-14 sm:w-10 sm:h-10 rounded-full top-0 bg-black bg-opacity-50;
+  z-index: 2;
+}
+
+.swiper-button-prev {
+  @apply -left-6 md:-left-12;
+}
+
+.swiper-button-next {
+  @apply -right-6 md:-right-12;
+}
+
+.swiper-pagination {
+  @apply space-x-1 w-24 h-0.5 absolute right-0 -top-4 flex invisible;
+}
+
+.swiper-pagination-bullet {
+  @apply h-full bg-secondary hidden md:block;
+  flex: 1 1 0%;
+}
+
+.swiper-pagination-bullet-active {
+  @apply bg-white;
+}
+
+.livecardclass {
+  @apply h-[184px] sm:h-[184px] md:h-40 2xl:h-[213.725px]  lg:h-44 xl:h-[170.663px];
+}
+</style>
